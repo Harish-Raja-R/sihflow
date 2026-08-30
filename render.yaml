@@ -27,13 +27,12 @@ services:
           property: connectionString
 
   # ============================================================
-  # 2. FRONTEND WEB APPLICATION (STATIC SITE)
+  # 2. FRONTEND WEB APPLICATION (STATIC SITE - GLOBAL CDN)
   # ============================================================
   - type: web
     name: sihflow-web
     env: static
     plan: free
-    region: oregon
     buildCommand: npm install && npm run build:packages && npm run build:web
     staticPublishPath: apps/web/dist
     routes:
