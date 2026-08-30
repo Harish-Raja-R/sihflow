@@ -1,13 +1,13 @@
 services:
   # ============================================================
-  # 1. BACKEND API WEB SERVICE
+  # SIHFLOW ERP PRODUCTION FULL-STACK SERVICE (API + REACT SPA)
   # ============================================================
   - type: web
-    name: sihflow-api
-    env: node
+    name: sihflow-erp
+    runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install && npm run build:packages && npm run build:api
+    buildCommand: npm install && npm run build
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /api/v1/health
     envVars:
@@ -26,29 +26,9 @@ services:
           name: sihflow-db
           property: connectionString
 
-  # ============================================================
-  # 2. FRONTEND WEB APPLICATION (STATIC SITE - GLOBAL CDN)
-  # ============================================================
-  - type: web
-    name: sihflow-web
-    env: static
-    plan: free
-    buildCommand: npm install && npm run build:packages && npm run build:web
-    staticPublishPath: apps/web/dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: sihflow-api
-          envVarKey: RENDER_EXTERNAL_URL
-
 databases:
   # ============================================================
-  # 3. FREE POSTGRESQL DATABASE
+  # FREE MANAGED POSTGRESQL DATABASE
   # ============================================================
   - name: sihflow-db
     plan: free
