@@ -1,0 +1,569 @@
+// SihFlow ERP Database Schema
+// Optimized for PostgreSQL and SQLite compatibility for immediate local runtime
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String
+  name           String
+  role           String    @default("TEAM_MEMBER") // TEAM_LEAD, TEAM_MEMBER, REVIEWER
+  teamRole       String    // TEAM LEAD, BLOCKCHAIN ENGINEER, IDENTITY + SECURITY ENGINEER, BACKEND ENGINEER, FRONTEND ENGINEER, QA + UI/UX + DOCUMENTATION
+  avatarUrl      String?
+  phone          String?
+  githubUsername String?
+  responsibilities String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  assignedTasks     Task[]               @relation("TaskAssignee")
+  reportedTasks     Task[]               @relation("TaskReporter")
+  reviewedTasks     Task[]               @relation("TaskReviewer")
+  reportedBlockers  Blocker[]            @relation("BlockerReporter")
+  blockingBlockers  Blocker[]            @relation("BlockerBlockedUser")
+  activities        ActivityLog[]
+  ownedWorkstreams  Workstream[]
+  ownedMilestones   Milestone[]
+  ownedDocuments    Document[]           @relation("DocumentOwner")
+  reviewedDocuments Document[]           @relation("DocumentReviewer")
+  ownedRisks        Risk[]
+  reportedBugs      Bug[]                @relation("BugReporter")
+  assignedBugs      Bug[]                @relation("BugAssignee")
+  testedCases       TestCase[]
+  notifications     Notification[]
+  actionItems       MeetingActionItem[]
+  projectMembers    ProjectMember[]
+  comments          TaskComment[]
+}
+
+model Project {
+  id                      String    @id @default(uuid())
+  projectId               String    @unique @default("PROJ-ACADSHIELD")
+  name                    String
+  sihProblemStatement     String
+  problemStatementNumber  String?
+  description             String
+  objective               String
+  startDate               DateTime
+  targetCompletionDate    DateTime
+  currentPhase            String    @default("ACTIVE")
+  status                  String    @default("ACTIVE") // PLANNING, ACTIVE, ON_HOLD, COMPLETED, ARCHIVED
+  progress                Int       @default(0)
+  repositoryUrl           String
+  demoUrl                 String?
+  deploymentUrl           String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  members           ProjectMember[]
+  workstreams       Workstream[]
+  tasks             Task[]
+  milestones        Milestone[]
+  sprints           Sprint[]
+  blockers          Blocker[]
+  activities        ActivityLog[]
+  meetings          Meeting[]
+  documents         Document[]
+  risks             Risk[]
+  bugs              Bug[]
+  testCases         TestCase[]
+  testRuns          TestRun[]
+  githubRepos       GitHubRepo[]
+  reports           Report[]
+  readinessItems    ReadinessItem[]
+  demoItems         DemoChecklistItem[]
+}
+
+model ProjectMember {
+  id               String   @id @default(uuid())
+  projectId        String
+  userId           String
+  roleInProject    String
+  responsibilities String?
+  isLead           Boolean  @default(false)
+  joinedAt         DateTime @default(now())
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model Workstream {
+  id          String   @id @default(uuid())
+  projectId   String
+  code        String   // WS-01, WS-02 etc
+  name        String
+  description String
+  ownerId     String?
+  status      String   @default("ACTIVE") // PLANNING, ACTIVE, COMPLETED, BLOCKED, AT_RISK
+  progress    Int      @default(0)
+  deadline    DateTime?
+  dependencies String?  // JSON string array
+  risks       String?  // JSON string
+  orderIndex  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  tasks       Task[]
+  testCases   TestCase[]
+}
+
+model Task {
+  id                 String    @id @default(uuid())
+  taskId             String    @unique // TASK-001
+  projectId          String
+  workstreamId       String?
+  milestoneId        String?
+  sprintId           String?
+  title              String
+  description        String
+  assigneeId         String?
+  reporterId         String?
+  reviewerId         String?
+  priority           String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status             String    @default("TODO") // BACKLOG, TODO, IN_PROGRESS, BLOCKED, IN_REVIEW, COMPLETED, CANCELLED
+  startDate          DateTime?
+  dueDate            DateTime?
+  estimatedHours     Float     @default(0)
+  actualHours        Float     @default(0)
+  progress           Int       @default(0)
+  dependencies       String?   // JSON string of task IDs
+  labels             String?   // JSON string array
+  githubIssueNumber  Int?
+  githubPrNumber     Int?
+  githubBranch       String?
+  reviewStatus       String?   // PENDING, APPROVED, CHANGES_REQUESTED
+  reviewComments     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project            Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workstream         Workstream?      @relation(fields: [workstreamId], references: [id])
+  milestone          Milestone?       @relation(fields: [milestoneId], references: [id])
+  sprint             Sprint?          @relation(fields: [sprintId], references: [id])
+  assignee           User?            @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  reporter           User?            @relation("TaskReporter", fields: [reporterId], references: [id])
+  reviewer           User?            @relation("TaskReviewer", fields: [reviewerId], references: [id])
+  
+  subtasks           Subtask[]
+  comments           TaskComment[]
+  attachments        TaskAttachment[]
+  blockers           Blocker[]
+  bugs               Bug[]
+}
+
+model Subtask {
+  id          String    @id @default(uuid())
+  taskId      String
+  title       String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  orderIndex  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TaskAttachment {
+  id         String   @id @default(uuid())
+  taskId     String
+  fileName   String
+  fileUrl    String
+  fileSize   Int
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Milestone {
+  id            String    @id @default(uuid())
+  milestoneCode String    // M1, M2...
+  projectId     String
+  name          String
+  description   String
+  startDate     DateTime
+  endDate       DateTime
+  ownerId       String?
+  progress      Int       @default(0)
+  status        String    @default("NOT_STARTED") // NOT_STARTED, ON_TRACK, AT_RISK, DELAYED, COMPLETED
+  risks         String?
+  orderIndex    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner         User?     @relation(fields: [ownerId], references: [id])
+  tasks         Task[]
+}
+
+model Sprint {
+  id             String    @id @default(uuid())
+  projectId      String
+  name           String
+  goal           String
+  startDate      DateTime
+  endDate        DateTime
+  status         String    @default("PLANNED") // PLANNED, ACTIVE, COMPLETED
+  progress       Int       @default(0)
+  velocity       Int       @default(0)
+  burndownData   String?   // JSON array of daily remaining points
+  retrospective  String?   // JSON or Markdown
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks          Task[]
+}
+
+model Blocker {
+  id                 String    @id @default(uuid())
+  blockerId          String    @unique // BLK-001
+  projectId          String
+  taskId             String?
+  title              String
+  description        String
+  reportedById       String
+  blockingUserId     String?
+  priority           String    @default("HIGH") // LOW, MEDIUM, HIGH, CRITICAL
+  status             String    @default("OPEN") // OPEN, ACKNOWLEDGED, IN_PROGRESS, RESOLVED, WONT_FIX
+  expectedResolution String?
+  resolutionNotes    String?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task               Task?     @relation(fields: [taskId], references: [id])
+  reporter           User      @relation("BlockerReporter", fields: [reportedById], references: [id])
+  blockingUser       User?     @relation("BlockerBlockedUser", fields: [blockingUserId], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  userId     String?
+  eventType  String   // TASK_UPDATED, BLOCKER_REPORTED, PR_MERGED, MILESTONE_COMPLETED, etc.
+  entityType String   // TASK, BLOCKER, GITHUB, MILESTONE, MEETING, DOCUMENT
+  entityId   String?
+  summary    String
+  details    String?  // JSON string
+  createdAt  DateTime @default(now())
+
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+}
+
+model Meeting {
+  id              String   @id @default(uuid())
+  projectId       String
+  title           String
+  date            DateTime
+  time            String
+  durationMinutes Int      @default(45)
+  agenda          String
+  notes           String?
+  decisions       String?
+  meetingLink     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actionItems     MeetingActionItem[]
+}
+
+model MeetingActionItem {
+  id                 String    @id @default(uuid())
+  meetingId          String
+  assigneeId         String?
+  title              String
+  dueDate            DateTime?
+  isCompleted        Boolean   @default(false)
+  convertedToTaskId  String?
+  createdAt          DateTime  @default(now())
+
+  meeting            Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  assignee           User?     @relation(fields: [assigneeId], references: [id])
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  projectId    String
+  name         String
+  category     String   // Problem Statement, Research, Architecture, SRS, Database Design, API Documentation, Smart Contract, Testing Report, PPT, Demo Script
+  version      String   @default("v1.0")
+  fileUrl      String
+  fileSize     Int      @default(0)
+  ownerId      String
+  status       String   @default("DRAFT") // DRAFT, IN_REVIEW, APPROVED, ARCHIVED
+  reviewerId   String?
+  reviewNotes  String?
+  reviewStatus String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner        User     @relation("DocumentOwner", fields: [ownerId], references: [id])
+  reviewer     User?    @relation("DocumentReviewer", fields: [reviewerId], references: [id])
+}
+
+model Risk {
+  id          String   @id @default(uuid())
+  projectId   String
+  title       String
+  description String
+  probability String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  impact      String   @default("HIGH")   // LOW, MEDIUM, HIGH
+  severity    String   @default("HIGH")   // LOW, MEDIUM, HIGH, CRITICAL
+  ownerId     String?
+  mitigation  String
+  status      String   @default("IDENTIFIED") // IDENTIFIED, MITIGATING, RESOLVED, ACCEPTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner       User?    @relation(fields: [ownerId], references: [id])
+}
+
+model Bug {
+  id                String    @id @default(uuid())
+  bugId             String    @unique // BUG-001
+  projectId         String
+  taskId            String?
+  title             String
+  description       String
+  severity          String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  priority          String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  reporterId        String
+  assigneeId        String?
+  environment       String    @default("Development")
+  stepsToReproduce  String
+  expectedResult    String
+  actualResult      String
+  status            String    @default("OPEN") // OPEN, TRIAGED, IN_PROGRESS, IN_REVIEW, RESOLVED, CLOSED, REOPENED
+  screenshotUrl     String?
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task              Task?     @relation(fields: [taskId], references: [id])
+  reporter          User      @relation("BugReporter", fields: [reporterId], references: [id])
+  assignee          User?     @relation("BugAssignee", fields: [assigneeId], references: [id])
+}
+
+model TestCase {
+  id             String    @id @default(uuid())
+  testCaseId     String    @unique // TC-001
+  projectId      String
+  workstreamId   String?
+  feature        String
+  description    String
+  steps          String
+  expectedResult String
+  actualResult   String?
+  status         String    @default("NOT_TESTED") // NOT_TESTED, PASS, FAIL, BLOCKED
+  testerId       String?
+  executionDate  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workstream     Workstream? @relation(fields: [workstreamId], references: [id])
+  tester         User?       @relation(fields: [testerId], references: [id])
+}
+
+model TestRun {
+  id             String   @id @default(uuid())
+  projectId      String
+  name           String
+  executedBy     String
+  totalCases     Int      @default(0)
+  passedCases    Int      @default(0)
+  failedCases    Int      @default(0)
+  blockedCases   Int      @default(0)
+  executionTime  String   @default("0s")
+  executedAt     DateTime @default(now())
+
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model GitHubRepo {
+  id            String    @id @default(uuid())
+  projectId     String
+  repoName      String    // vishanth11/AcadShield
+  repoUrl       String    // https://github.com/vishanth11/AcadShield.git
+  defaultBranch String    @default("main")
+  isSyncing     Boolean   @default(false)
+  lastSyncedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commits       GitHubCommit[]
+  pullRequests  GitHubPullRequest[]
+  issues        GitHubIssue[]
+}
+
+model GitHubCommit {
+  id           String     @id @default(uuid())
+  repoId       String
+  sha          String     @unique
+  message      String
+  authorName   String
+  authorEmail  String
+  authorAvatar String?
+  commitDate   DateTime
+  branch       String     @default("main")
+  url          String
+  stats        String?    // JSON e.g. { additions: 120, deletions: 15 }
+
+  repo         GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
+}
+
+model GitHubPullRequest {
+  id            String     @id @default(uuid())
+  repoId        String
+  prNumber      Int
+  title         String
+  body          String?
+  state         String     // OPEN, MERGED, CLOSED
+  authorName    String
+  authorAvatar  String?
+  headBranch    String
+  baseBranch    String     @default("main")
+  isDraft       Boolean    @default(false)
+  mergedAt      DateTime?
+  url           String
+  reviewsCount  Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  repo          GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  reviews       GitHubReview[]
+
+  @@unique([repoId, prNumber])
+}
+
+model GitHubReview {
+  id            String            @id @default(uuid())
+  pullRequestId String
+  reviewerName  String
+  state         String            // APPROVED, CHANGES_REQUESTED, COMMENTED
+  submittedAt   DateTime          @default(now())
+  body          String?
+
+  pullRequest   GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+}
+
+model GitHubIssue {
+  id          String     @id @default(uuid())
+  repoId      String
+  issueNumber Int
+  title       String
+  body        String?
+  state       String     // OPEN, CLOSED
+  authorName  String
+  labels      String?    // JSON array
+  assignees   String?    // JSON array
+  url         String
+  closedAt    DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  repo        GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, issueNumber])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // TASK, BLOCKER, PR, MILESTONE, MEETING, SYSTEM
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id            String   @id @default(uuid())
+  projectId     String
+  reportType    String   // WEEKLY_PROJECT, TEAM_CONTRIBUTION, TASK_COMPLETION, MILESTONE, BLOCKER, BUG, GITHUB, SIH_READINESS, DEMO_READINESS
+  title         String
+  summary       String
+  data          String   // JSON payload of full report
+  generatedById String
+  generatedAt   DateTime @default(now())
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ReadinessItem {
+  id          String   @id @default(uuid())
+  projectId   String
+  category    String   // Problem Understanding, Research, Architecture, Prototype, Backend, Frontend, Blockchain, Security, Integration, Testing, Documentation, Deployment, Presentation, Demo
+  name        String
+  description String
+  weight      Int      @default(10)
+  progress    Int      @default(0) // 0-100
+  ownerId     String?
+  evidence    String?
+  status      String   @default("IN_PROGRESS") // NOT_STARTED, IN_PROGRESS, COMPLETED, BLOCKED
+  orderIndex  Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DemoChecklistItem {
+  id           String    @id @default(uuid())
+  projectId    String
+  category     String    // Authentication, Identity & RBAC, Credential Issuance, Blockchain & Ledger, Wallet & Sharing, Employer Verification, Security & Fraud, Administration
+  itemCode     String    // DEMO-01, DEMO-02...
+  title        String
+  description  String
+  ownerId      String?
+  status       String    @default("NOT_TESTED") // PASS, FAIL, NOT_TESTED
+  evidence     String?
+  lastTestedAt DateTime?
+  orderIndex   Int       @default(0)
+  updatedAt    DateTime  @updatedAt
+
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  projectId String?
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}

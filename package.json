@@ -1,0 +1,45 @@
+{
+  "name": "sihflow-erp",
+  "version": "2.0.0",
+  "description": "Production-grade SIH Project Management ERP for 6-member student innovation teams building AcadShield",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@sihflow/api & npm run dev --workspace=@sihflow/web",
+    "dev:api": "npm run dev --workspace=@sihflow/api",
+    "dev:web": "npm run dev --workspace=@sihflow/web",
+    "build:packages": "npm run build --workspace=@sihflow/types && npm run build --workspace=@sihflow/validation && npm run build --workspace=@sihflow/config",
+    "build:api": "npm run build --workspace=@sihflow/api",
+    "build:web": "npm run build --workspace=@sihflow/web",
+    "build": "npm run build:packages && npm run build:api && npm run build:web",
+    "test": "npm test --workspace=@sihflow/api",
+    "prisma:generate": "npx prisma generate",
+    "prisma:push": "npx prisma db push",
+    "prisma:seed": "npx prisma db seed",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0",
+    "tsx": "^4.10.5",
+    "typescript": "^5.4.5"
+  },
+  "keywords": [
+    "sih",
+    "erp",
+    "project-management",
+    "acadshield",
+    "blockchain",
+    "hackathon",
+    "monorepo"
+  ],
+  "author": "SihFlow Team",
+  "license": "MIT"
+}

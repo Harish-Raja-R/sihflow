@@ -1,0 +1,58 @@
+services:
+  # ============================================================
+  # 1. BACKEND API WEB SERVICE
+  # ============================================================
+  - type: web
+    name: sihflow-api
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build:packages && npm run build:api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEMO_MODE
+        value: "true"
+      - key: GITHUB_REPO_URL
+        value: "https://github.com/vishanth11/AcadShield.git"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sihflow-db
+          property: connectionString
+
+  # ============================================================
+  # 2. FRONTEND WEB APPLICATION (STATIC SITE)
+  # ============================================================
+  - type: web
+    name: sihflow-web
+    env: static
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build:packages && npm run build:web
+    staticPublishPath: apps/web/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: sihflow-api
+          envVarKey: RENDER_EXTERNAL_URL
+
+databases:
+  # ============================================================
+  # 3. FREE POSTGRESQL DATABASE
+  # ============================================================
+  - name: sihflow-db
+    plan: free
+    region: oregon
+    databaseName: sihflow_db
+    user: sihflow
