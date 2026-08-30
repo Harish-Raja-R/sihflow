@@ -36,7 +36,7 @@ export function createApp(): Express {
 
   if (webDistPath) {
     app.use(express.static(webDistPath));
-    app.get('*', (req: Request, res: Response, next) => {
+    app.get('*', (req: Request, res: Response, next: express.NextFunction) => {
       if (req.path.startsWith('/api')) {
         return next();
       }
